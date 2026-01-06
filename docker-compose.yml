@@ -1,0 +1,71 @@
+version: '3.9'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: ai-guardian-db
+    environment:
+      POSTGRES_USER: ai_guardian
+      POSTGRES_PASSWORD: secure_password_123
+      POSTGRES_DB:  ai_guardian
+    volumes: 
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks: 
+      - ai-guardian-network
+
+  # Redis Cache
+  redis:
+    image:  redis:7-alpine
+    container_name: ai-guardian-cache
+    ports:
+      - "6379:6379"
+    networks:
+      - ai-guardian-network
+
+  # FastAPI Backend
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ai-guardian-api
+    environment:
+      DATABASE_URL: postgresql://ai_guardian:secure_password_123@postgres:5432/ai_guardian
+      REDIS_URL: redis://redis:6379
+      DEBUG: "False"
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+      - redis
+    volumes: 
+      - ./backend:/app
+    networks:
+      - ai-guardian-network
+    command: uvicorn app: app --host 0.0.0.0 --port 8000
+
+  # React Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name:  ai-guardian-web
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    environment:
+      VITE_API_URL: http://localhost:8000
+    networks:
+      - ai-guardian-network
+    volumes:
+      - ./frontend/src:/app/src
+
+volumes:
+  postgres_data: 
+
+networks:
+  ai-guardian-network:
+    driver: bridge
